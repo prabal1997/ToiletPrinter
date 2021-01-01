@@ -7,7 +7,7 @@ Servo pen;
 // configuration constants
 const int CHAR_HT = 10;
 const int CHAR_WID = CHAR_HT;
-const int CHAR_ROW_COUNT = 3;
+const int CHAR_ROW_COUNT = 1;
 const int CANVAS_WIDTH = CHAR_ROW_COUNT * CHAR_WID;
 
 const int verticalPin = 8;
@@ -17,25 +17,44 @@ const int consoleBaudRate = 9600;
 
 const float startHorizontalPos = 20;
 const float endingHorizontalPos = 100;
-const float jumpsInHorizontalPos = (endingHorizontalPos - startHorizontalPos) / (CHAR_WID * CHAR_ROW_COUNT);
+const float jumpsInHorizontalPos = (endingHorizontalPos - startHorizontalPos) / CANVAS_WIDTH;
 
 const int minBluePen = 10;
 const int maxBluePen = 105;
 const int jumpInPenPos = 2;
 
-// const int 
-
+const int verticalStopRate = 38;
+const int verticalMoveRate = 90;
 
 // creating representation for ASCII charaters as  CHAR_HT x CHAR_WID images
 const int LETTER_TO_MATRIX_MAP_LEN = 255;
 char** letter_to_matrix_map = new char*[LETTER_TO_MATRIX_MAP_LEN];
-char a[CHAR_HT * CHAR_WID] =  {0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1};
+char a[CHAR_HT * CHAR_WID] =  {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+                            //{0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1};
 
 // variables that store current state of the components of the printer
-int HORIZONTAL_POS = startHorizontalPos;
+int CURR_HORIZONTAL_POS = startHorizontalPos;
+int CURR_PEN_POS = maxBluePen;
+int CURR_VERTICAL_SPEED = verticalStopRate;
 
 // sample sentence to be printed
 char someString[] = "aaaaaa";
+
+// create functions that command components, and record their current state
+void write_pen(int new_pos) {
+  pen.write(new_pos);
+  CURR_PEN_POS = new_pos;
+}
+
+void write_horizontal(int new_pos) {
+  horizontal.write(new_pos);
+  CURR_HORIZONTAL_POS = new_pos;
+}
+
+void write_vertical(int new_rate) {
+  vertical.write(new_rate);
+  CURR_VERTICAL_SPEED = new_rate;
+}
 
 void setup() {
 
@@ -46,11 +65,13 @@ void setup() {
 
   // initialize the printer components and move them to the appropriate positions
   vertical.attach(verticalPin);
-  vertical.write(38); 
+  write_vertical(verticalStopRate);
+  
   pen.attach(penPin);
-  pen.write(maxBluePen);
+  write_pen(maxBluePen);
+  
   horizontal.attach(horizontalPin);
-  horizontal.write(startHorizontalPos);
+  write_horizontal(startHorizontalPos);
 
   // initialize the letter-to-matrix mapping
   for (unsigned char letter = 0; letter < LETTER_TO_MATRIX_MAP_LEN; ++letter) {
@@ -74,7 +95,7 @@ char* give_canvas(char* letter_list, int letter_count=CHAR_ROW_COUNT) {
 
   int actual_letter_count = (letter_count < CHAR_ROW_COUNT) ? letter_count : CHAR_ROW_COUNT;
 
-  Serial.println(String("In the function 1: ") + String(letter_list));
+  Serial.println(String("\nIn the function with input \'") + String(letter_list) + String("\' of length ") + String(actual_letter_count) + String(" characters."));
   delay(500);
 
   // create, initialize canvas
@@ -120,8 +141,9 @@ char** give_rows(char* letter_list, int list_len) {
   // convert each row of letters to a matrix to be printed
   int letters_in_current_row = 0;
   for (int canvas_index = 0; canvas_index < canvas_count; canvas_index += 1) {
-    letters_in_current_row = (canvas_index == (canvas_count-1)) ? (list_len % CHAR_ROW_COUNT) : CHAR_ROW_COUNT;
-
+    // letters_in_current_row = (canvas_index == (canvas_count-1)) ? (list_len % CHAR_ROW_COUNT) : CHAR_ROW_COUNT;
+    letters_in_current_row = list_len - (canvas_index * CHAR_ROW_COUNT);
+    
     /*
     Serial.println(String("In da loop ") + String(canvas_index));
     Serial.println(String(letters_in_current_row));
@@ -136,29 +158,43 @@ char** give_rows(char* letter_list, int list_len) {
   return canvas_list;
 }
 
-
+// this function moves the pen to the paper, lets it mark the paper, then moves it back
 void pen_write_dot() {
       pen.attach(penPin);
       for (int penPos = maxBluePen; penPos >= minBluePen; penPos -= jumpInPenPos) { 
-        pen.write(penPos);              
+        write_pen(penPos);              
         delay(2);                       
       }
       delay(60);
       for (int penPos = minBluePen; penPos <= maxBluePen; penPos += jumpInPenPos) { 
-        pen.write(penPos);              
+        write_pen(penPos);              
         delay(2);                      
       }
-      delay(10);
+      delay(50);
       pen.detach();
 }
 
-void set_horizontal_pos(float horizontalPos) {
+void set_horizontal_pos(float newHorizontalPos, float speedFactor=1) {
       horizontal.attach(horizontalPin);
-      for (float currHorizontalPos = HORIZONTAL_POS; currHorizontalPos < horizontalPos; ++currHorizontalPos) {
-        horizontal.write(currHorizontalPos);              // tell servo to go to position in variable 'pos'        
-        delay(45);
-      }
-      HORIZONTAL_POS = horizontalPos;
+
+      // move the horizontal component slowly; set the state variable appropriately
+      int startHorizontalPos = CURR_HORIZONTAL_POS;
+      int endHorizontalPos = newHorizontalPos;
+
+      // calculate what direction the horizontal component needs to move
+      int directionFactor = ((startHorizontalPos < endHorizontalPos) ? 1 : -1);
+      
+      for (float currHorizontalPos = startHorizontalPos;
+          // depending upon the direction of movement, change the loop's termination conditions
+          (directionFactor * currHorizontalPos) < (directionFactor * endHorizontalPos);
+          // increment to new position slowly
+          currHorizontalPos += (directionFactor * speedFactor * jumpsInHorizontalPos)) {
+
+        // go to new position, wait for some time
+        write_horizontal(currHorizontalPos);              // tell servo to go to position in variable 'pos'        
+        delay(50);
+      }      
+      
       horizontal.detach();  
 }
 
@@ -167,20 +203,15 @@ void loop() {
    // print the string, its length on the console
    int stringLen = strlen(someString);
 
-   Serial.println(someString);
-   Serial.println(stringLen);
-
    Serial.print("Attempting to print some string \"");
    Serial.print(someString);
    Serial.print("\"");
    Serial.print(" that is ");
    Serial.print(String(stringLen));
-   Serial.print(" characters long");
+   Serial.print(" characters long\n");
       
    delay(200);
-  
-
-   
+     
    char** output_rows = give_rows(someString, stringLen);
    int output_row_count = give_row_count(stringLen);
    float horizonalPos = 0;
@@ -191,7 +222,7 @@ void loop() {
      
           //Serial.print(output_rows[output_row_index][output_pixel_row_index * CANVAS_WIDTH + col_index]);        
           if (output_rows[output_row_index][output_pixel_row_index * CANVAS_WIDTH + col_index]) {
-            set_horizontal_pos(horizonalPos);
+            set_horizontal_pos(horizonalPos, 2);
             pen_write_dot();
             // print a '.' to indicate that the printer will
             // draw a mark on the paper
@@ -206,25 +237,17 @@ void loop() {
             Serial.print(String(" "));
           }
        }
-  
-       /*
-       for (horizonalPos = startHorizontalPos; horizonalPos <= endingHorizontalPos; horizonalPos += jumpsInHorizontalPos ) { // goes from 0 degrees to 180 degrees in steps of 1 degree
-            set_horizontal_pos(horizonalPos);
-            pen_write_dot();
-      
-            // set a delay to keep power load reasonable
-            delay(2);
-       }
-       */     
        
       
         horizontal.attach(horizontalPin);
-        for (; horizonalPos >= startHorizontalPos - 10; horizonalPos -= 2) { // goes from 180 degrees to 0 degrees
-          horizontal.write(horizonalPos);              // tell servo to go to position in variable 'pos'
-          delay(15);                       // waits 15ms for the servo to reach the position
-        }
-        HORIZONTAL_POS = horizonalPos;
-        delay(50);
+
+        // reset the horizontal component to original position
+        // and accomodate for slack by moving it just a bit more than required in
+        // towrads the direction of the start position
+        set_horizontal_pos(startHorizontalPos - 10, 2);
+        
+        
+        delay(50);        
         horizontal.detach();
   
         /////////////////////////////////
@@ -233,9 +256,10 @@ void loop() {
         
         // Move down
         vertical.attach(verticalPin);
-        vertical.write(90);
+        write_vertical(90);
         delay(125);
-        vertical.write(38);              // tell servo to go to position in variable 'pos'                       // waits 15ms for the servo to reach the position
+        write_vertical(38);              // tell servo to go to position in variable 'pos'                       // waits 15ms for the servo to reach the position
+        delay(50);
         vertical.detach();
         delay(50);
     }
